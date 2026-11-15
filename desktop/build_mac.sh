@@ -75,6 +75,25 @@ export PATH="$RUNTIME:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/
 mkdir -p "$OIVS_DATA_DIR"
 LOG="$OIVS_DATA_DIR/app.log"
 
+show_err() {
+  local msg="$1"
+  echo "$msg" >> "$LOG"
+  /usr/bin/osascript -e "display alert \"信奥讲解视频工坊 - 启动失败\" message \"$msg\" as critical" >/dev/null 2>&1 || true
+}
+
+if [[ ! -x "$RUNTIME/node" ]]; then
+  show_err "未找到内置运行环境: $RUNTIME/node"
+  exit 1
+fi
+if [[ ! -x "$RUNTIME/ffmpeg" ]]; then
+  show_err "未找到内置音视频组件: $RUNTIME/ffmpeg"
+  exit 1
+fi
+if [[ ! -f "$APP/scripts/start.js" || ! -f "$APP/server.js" ]]; then
+  show_err "未找到应用启动脚本: $APP/scripts/start.js"
+  exit 1
+fi
+
 if [[ "${1:-}" == "--self-test" ]]; then
   exec "$RUNTIME/node" "$APP/scripts/start.js" --self-test
 fi
@@ -97,8 +116,8 @@ codesign --verify --deep --strict "$APP_BUNDLE"
 echo "[3/5] 正在执行内建自检 (--self-test)..."
 "$APP_BUNDLE/Contents/MacOS/OIVideoStudio" --self-test
 
-echo "[4/5] 正在打包 macOS ZIP..."
-ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_OUT"
+echo "[4/5] 正在打包 macOS ZIP (强制 UTF-8 文件名标志)..."
+python3 "$ROOT/scripts/make_utf8_zip.py" "$APP_BUNDLE" "$ROOT/$ZIP_OUT" --prefix "$APP_NAME.app"
 
 echo "[5/5] 正在打包 macOS DMG 安装镜像..."
 DMG_STAGE=$(mktemp -d)

@@ -23,6 +23,24 @@ namespace OIVideoStudio
             string appDir = Path.Combine(baseDir, "app");
             string nodeExe = Path.Combine(runtimeDir, "node.exe");
             string ffmpegExe = Path.Combine(runtimeDir, "ffmpeg.exe");
+            string startJs = Path.Combine(appDir, "scripts", "start.js");
+            string serverJs = Path.Combine(appDir, "server.js");
+
+            if (!File.Exists(nodeExe) || !File.Exists(ffmpegExe) || !File.Exists(startJs) || !File.Exists(serverJs))
+            {
+                MessageBox.Show(
+                    "找不到核心运行文件：\r\n" +
+                    "  • " + nodeExe + "\r\n" +
+                    "  • " + ffmpegExe + "\r\n" +
+                    "  • " + startJs + "\r\n\r\n" +
+                    "请确保已将压缩包完整解压到文件夹后再运行，不要直接在压缩包内双击。",
+                    "信奥讲解视频工坊 - 启动失败",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return 1;
+            }
+
             string dataDir = Environment.GetEnvironmentVariable("OIVS_DATA_DIR");
             if (string.IsNullOrEmpty(dataDir))
                 dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OIVideoStudio");
@@ -36,7 +54,7 @@ namespace OIVideoStudio
 
             if (isSelfTest)
             {
-                ProcessStartInfo psi = new ProcessStartInfo(nodeExe, "\"" + Path.Combine(appDir, "scripts", "start.js") + "\" --self-test");
+                ProcessStartInfo psi = new ProcessStartInfo(nodeExe, "\"" + startJs + "\" --self-test");
                 psi.WorkingDirectory = appDir;
                 psi.UseShellExecute = false;
                 psi.RedirectStandardOutput = true;
@@ -63,23 +81,36 @@ namespace OIVideoStudio
             Application.SetCompatibleTextRenderingDefault(false);
 
             string logFile = Path.Combine(dataDir, "app.log");
-            ProcessStartInfo srvPsi = new ProcessStartInfo(nodeExe, "\"" + Path.Combine(appDir, "server.js") + "\"");
-            srvPsi.WorkingDirectory = appDir;
-            srvPsi.UseShellExecute = false;
-            srvPsi.CreateNoWindow = true;
-            srvPsi.RedirectStandardOutput = true;
-            srvPsi.RedirectStandardError = true;
-            srvPsi.EnvironmentVariables["OIVS_DATA_DIR"] = dataDir;
-            srvPsi.EnvironmentVariables["OIVS_FFMPEG"] = ffmpegExe;
+            try
+            {
+                ProcessStartInfo srvPsi = new ProcessStartInfo(nodeExe, "\"" + serverJs + "\"");
+                srvPsi.WorkingDirectory = appDir;
+                srvPsi.UseShellExecute = false;
+                srvPsi.CreateNoWindow = true;
+                srvPsi.RedirectStandardOutput = true;
+                srvPsi.RedirectStandardError = true;
+                srvPsi.EnvironmentVariables["OIVS_DATA_DIR"] = dataDir;
+                srvPsi.EnvironmentVariables["OIVS_FFMPEG"] = ffmpegExe;
 
-            serverProc = new Process();
-            serverProc.StartInfo = srvPsi;
-            StreamWriter logWriter = new StreamWriter(new FileStream(logFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
-            serverProc.OutputDataReceived += (s, e) => { if (e.Data != null) try { logWriter.WriteLine(e.Data); } catch {} };
-            serverProc.ErrorDataReceived += (s, e) => { if (e.Data != null) try { logWriter.WriteLine(e.Data); } catch {} };
-            serverProc.Start();
-            serverProc.BeginOutputReadLine();
-            serverProc.BeginErrorReadLine();
+                serverProc = new Process();
+                serverProc.StartInfo = srvPsi;
+                StreamWriter logWriter = new StreamWriter(new FileStream(logFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+                serverProc.OutputDataReceived += (s, e) => { if (e.Data != null) try { logWriter.WriteLine(e.Data); } catch {} };
+                serverProc.ErrorDataReceived += (s, e) => { if (e.Data != null) try { logWriter.WriteLine(e.Data); } catch {} };
+                serverProc.Start();
+                serverProc.BeginOutputReadLine();
+                serverProc.BeginErrorReadLine();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "启动后台服务失败：\r\n" + ex.Message,
+                    "信奥讲解视频工坊 - 启动失败",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return 1;
+            }
 
             ThreadPool.QueueUserWorkItem(_ =>
             {
@@ -88,7 +119,17 @@ namespace OIVideoStudio
                     if (IsPortOpen(Port))
                     {
                         try { Process.Start(new ProcessStartInfo(Url) { UseShellExecute = true }); } catch {}
-                        break;
+                        return;
+                    }
+                    if (serverProc != null && serverProc.HasExited)
+                    {
+                        MessageBox.Show(
+                            "后台服务启动后异常退出，请查看日志文件：\r\n" + logFile,
+                            "信奥讲解视频工坊 - 服务异常退出",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        return;
                     }
                     Thread.Sleep(200);
                 }

@@ -1,6 +1,6 @@
 {
   "name": "oi-video-studio",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "信奥题目动画讲解视频生成网站",
   "scripts": {

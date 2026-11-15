@@ -15,7 +15,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist
 OutputBaseFilename=信奥讲解视频工坊-v{#MyAppVersion}-windows-x64-setup
 SetupIconFile=icon.ico
-UninstallDisplayIcon={app}\信奥讲解视频工坊.exe
+UninstallDisplayIcon={app}\OIVideoStudio.exe
 Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
@@ -32,9 +32,9 @@ Name: "desktopicon"; Description: "创建桌面快捷方式(&D)"; GroupDescripti
 Source: "..\dist\OIVideoStudio\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\信奥讲解视频工坊"; Filename: "{app}\信奥讲解视频工坊.exe"
+Name: "{group}\信奥讲解视频工坊"; Filename: "{app}\OIVideoStudio.exe"
 Name: "{group}\卸载信奥讲解视频工坊"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\信奥讲解视频工坊"; Filename: "{app}\信奥讲解视频工坊.exe"; Tasks: desktopicon
+Name: "{autodesktop}\信奥讲解视频工坊"; Filename: "{app}\OIVideoStudio.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\信奥讲解视频工坊.exe"; Description: "立即启动信奥讲解视频工坊"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\OIVideoStudio.exe"; Description: "立即启动信奥讲解视频工坊"; Flags: nowait postinstall skipifsilent

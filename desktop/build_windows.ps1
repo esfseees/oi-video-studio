@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 $Root = (Get-Location).Path
-$Pkg = Get-Content "$Root\package.json" -Raw | ConvertFrom-Json
+$Pkg = Get-Content "$Root\package.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 $Ver = $Pkg.version
 
 $StageDir = "$Root\dist\OIVideoStudio"
@@ -28,7 +28,8 @@ if ($FfmpegCmd) {
     $FfExtract = "$env:TEMP\ffmpeg-extract"
     Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile $FfZip
     if (Test-Path $FfExtract) { Remove-Item -Recurse -Force $FfExtract }
-    Expand-Archive -Path $FfZip -DestinationPath $FfExtract -Force
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($FfZip, $FfExtract, [System.Text.Encoding]::UTF8)
     $FoundFf = Get-ChildItem -Path $FfExtract -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1
     if (-not $FoundFf) { throw "Failed to locate ffmpeg.exe in downloaded archive" }
     Copy-Item $FoundFf.FullName "$RuntimeDir\ffmpeg.exe" -Force
@@ -40,24 +41,28 @@ Get-ChildItem -Path $Root -Force | Where-Object { $Exclude -notcontains $_.Name 
     Copy-Item -Path $_.FullName -Destination "$AppDir\$($_.Name)" -Recurse -Force
 }
 
-Write-Host "[5/6] Compiling Windows native GUI launcher (信奥讲解视频工坊.exe)..."
+Write-Host "[5/6] Compiling Windows native GUI launcher (OIVideoStudio.exe & 信奥讲解视频工坊.exe)..."
 $Csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if (-not (Test-Path $Csc)) {
     $Csc = (Get-ChildItem "C:\Windows\Microsoft.NET\Framework*" -Filter "csc.exe" -Recurse | Select-Object -Last 1).FullName
 }
-$ExePath = "$StageDir\信奥讲解视频工坊.exe"
-& $Csc /nologo /target:winexe /out:$ExePath "/win32icon:$Root\desktop\icon.ico" /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Root\desktop\Launcher.cs"
+$ExeAscii = "$StageDir\OIVideoStudio.exe"
+$ExeCn = "$StageDir\信奥讲解视频工坊.exe"
+& $Csc /nologo /target:winexe /out:$ExeAscii "/win32icon:$Root\desktop\icon.ico" /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Root\desktop\Launcher.cs"
 if ($LASTEXITCODE -ne 0) { throw "csc.exe compilation failed" }
+Copy-Item $ExeAscii $ExeCn -Force
 
-# Also create a convenience batch script for LAN mode
-Set-Content -Path "$StageDir\启动局域网共享模式.bat" -Value "@echo off`r`ncd /d ""%~dp0app""`r`nset ""OIVS_DATA_DIR=%APPDATA%\OIVideoStudio""`r`nset ""OIVS_FFMPEG=%~dp0runtime\ffmpeg.exe""`r`n""%~dp0runtime\node.exe"" scripts\start.js --lan`r`npause" -Encoding UTF8
+$LanBat = "@echo off`r`nchcp 65001 >nul`r`ncd /d ""%~dp0app""`r`nset ""OIVS_DATA_DIR=%APPDATA%\OIVideoStudio""`r`nset ""OIVS_FFMPEG=%~dp0runtime\ffmpeg.exe""`r`n""%~dp0runtime\node.exe"" scripts\start.js --lan`r`npause"
+Set-Content -Path "$StageDir\start-lan.bat" -Value $LanBat -Encoding UTF8
+Set-Content -Path "$StageDir\启动局域网共享模式.bat" -Value $LanBat -Encoding UTF8
 
 Write-Host "[5.5/6] Running self-test on built Windows package..."
 & "$RuntimeDir\node.exe" "$AppDir\scripts\start.js" --self-test
 if ($LASTEXITCODE -ne 0) { throw "Windows self-test failed" }
 
-Write-Host "[6/6] Building portable ZIP and Inno Setup installer..."
-Compress-Archive -Path "$StageDir\*" -DestinationPath $ZipOut -Force
+Write-Host "[6/6] Building UTF-8 portable ZIP and Inno Setup installer..."
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($StageDir, $ZipOut, [System.IO.Compression.CompressionLevel]::Optimal, $false, [System.Text.Encoding]::UTF8)
 
 $Iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 if (-not (Test-Path $Iscc)) {

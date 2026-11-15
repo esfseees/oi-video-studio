@@ -12,9 +12,22 @@ if (!WIN) process.env.PATH = ['/opt/homebrew/bin', '/usr/local/bin', process.env
 const say = s => console.log(s);
 const ok = (cmd, args) => { try { return spawnSync(cmd, args, { stdio: 'ignore', timeout: 20000 }).status === 0; } catch (e) { return false; } };
 
+function showFatalError(title, msg) {
+  say('\n' + title + '\n' + msg);
+  if (WIN) {
+    try {
+      const literal = value => "'" + value.replace(/'/g, "''") + "'";
+      const ps = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(${literal(msg)}, ${literal(title)}, 'OK', 'Error') | Out-Null`;
+      spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')], { stdio: 'inherit' });
+    } catch (e) { /* ignore if messagebox fails */ }
+  }
+}
+
 function findFfmpeg() {
-  if (!process.env.OIVS_DATA_DIR && fs.existsSync(path.join(ROOT, "..", "runtime", WIN ? "node.exe" : "node"))) {
-    process.env.OIVS_DATA_DIR = WIN ? path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "OIVideoStudio") : path.join(os.homedir(), "Library", "Application Support", "OIVideoStudio");
+  if (!process.env.OIVS_DATA_DIR && fs.existsSync(path.join(ROOT, '..', 'runtime', WIN ? 'node.exe' : 'node'))) {
+    process.env.OIVS_DATA_DIR = WIN
+      ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'OIVideoStudio')
+      : path.join(os.homedir(), 'Library', 'Application Support', 'OIVideoStudio');
   }
   if (process.env.OIVS_FFMPEG && fs.existsSync(process.env.OIVS_FFMPEG)) return process.env.OIVS_FFMPEG;
   const bundled = path.join(ROOT, '..', 'runtime', WIN ? 'ffmpeg.exe' : 'ffmpeg');
@@ -53,13 +66,18 @@ function askHidden(prompt) {                                  // read a line wit
     return;
   }
   say('信奥讲解视频工坊 · 正在检查运行环境…');
+  const serverFile = path.join(ROOT, 'server.js');
+  if (!fs.existsSync(serverFile)) {
+    showFatalError('信奥讲解视频工坊 - 启动失败', '找不到服务入口文件：' + serverFile + '\n请确认安装包已完整解压。');
+    process.exit(1);
+  }
   const miss = [];
   if (Number(process.versions.node.split('.')[0]) < 20) miss.push(['Node.js 20 或更新版本（当前是 ' + process.versions.node + '）', MAC ? 'brew install node' : 'https://nodejs.org 下载安装 LTS 版']);
   if (!findFfmpeg()) miss.push(['ffmpeg（合成视频用）', MAC ? 'brew install ffmpeg' : WIN ? 'winget install Gyan.FFmpeg（装完重新打开本窗口）' : 'sudo apt install ffmpeg']);
   if (!hasBrowser()) miss.push(['Google Chrome 或 Microsoft Edge 浏览器（画动画用）', 'https://www.google.cn/chrome/ 下载安装']);
   if (miss.length) {
-    say('\n还缺少下面的软件，请装好后再重新启动：');
-    miss.forEach(([n, how], i) => say(`  ${i + 1}. ${n}\n     安装方法：${how}`));
+    const lines = miss.map(([n, how], i) => `${i + 1}. ${n}\n   安装方法：${how}`).join('\n\n');
+    showFatalError('信奥讲解视频工坊 - 缺少运行组件', '还缺少下面的软件，请装好后再重新启动：\n\n' + lines);
     if (MAC && miss.some(m => /^brew/.test(m[1]))) say('\n  提示：brew 是 macOS 的软件安装工具，没有的话先到 https://brew.sh 按首页说明安装。');
     process.exit(1);
   }
@@ -74,7 +92,7 @@ function askHidden(prompt) {                                  // read a line wit
     process.env.HOST = '0.0.0.0';
   }
 
-  const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit', 'ipc'], env: process.env });
+  const child = spawn(process.execPath, [serverFile], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit', 'ipc'], env: process.env });
   const openUrl = () => { if (!process.env.NO_OPEN) try { spawn(MAC ? 'open' : WIN ? 'cmd' : 'xdg-open', WIN ? ['/c', 'start', '', `http://127.0.0.1:${PORT}`] : [`http://127.0.0.1:${PORT}`], { stdio: 'ignore', detached: true }).unref(); } catch (e) { /* no browser opener */ } };
   child.on('message', m => {
     if (m !== 'ready') return;
@@ -89,6 +107,19 @@ function askHidden(prompt) {                                  // read a line wit
     say('\n网站运行中。关闭这个窗口，网站就会停止。');
     openUrl();
   });
-  child.on('exit', code => { if (code === 3) openUrl(); process.exit(code || 0); });
+  child.on('error', error => {
+    showFatalError('信奥讲解视频工坊 - 启动失败', error.message);
+    process.exit(1);
+  });
+  child.on('exit', code => {
+    if (code === 3) { openUrl(); process.exit(0); }
+    if (code && code !== 0) {
+      showFatalError('信奥讲解视频工坊 - 服务异常退出', '后台服务异常退出（错误码 ' + code + '）。请检查端口 ' + PORT + ' 是否被其他软件占用。');
+    }
+    process.exit(code || 0);
+  });
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => child.kill());
-})();
+})().catch(error => {
+  showFatalError('信奥讲解视频工坊 - 启动失败', error.message || String(error));
+  process.exit(1);
+});
