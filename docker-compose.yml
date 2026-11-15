@@ -1,0 +1,10 @@
+services:
+  oi-video-studio:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5178:5178"
+    env_file: .env          # 里面必须设置 ACCESS_PASSWORD
+    volumes:
+      - ./data:/app/data    # 模型配置、上传的角色、生成的视频
+    shm_size: 1gb

@@ -1,0 +1,7 @@
+data
+.venv
+node_modules
+dist
+.env
+*.command
+*.bat

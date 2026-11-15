@@ -1,0 +1,17 @@
+{
+  "name": "oi-video-studio",
+  "version": "0.2.0",
+  "private": true,
+  "description": "信奥题目动画讲解视频生成网站",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "lan": "node scripts/start.js --lan",
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

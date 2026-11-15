@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>信奥讲解视频工坊</title>
+<link rel="icon" href="/char/xiaotuling">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <img src="/char/xiaotuling" alt="">
+    <div><h1>信奥讲解视频工坊</h1><p>题目 + 答案代码 → 带配音的动画讲解视频</p></div>
+  </div>
+  <button id="openSettings" class="chip"><span class="dot" id="modelDot"></span><span id="modelChip">AI 模型配置</span></button>
+</header>
+
+<main>
+  <section class="card">
+    <div class="steps-title"><b>1</b> 题目和答案代码</div>
+    <div class="two">
+      <div class="col">
+        <div class="tabs">
+          <button class="tab on" data-tab="text">粘贴文字</button>
+          <button class="tab" data-tab="image">上传截图</button>
+          <button class="tab" data-tab="url">题目链接</button>
+          <span class="hint">三种方式可以同时提供</span>
+        </div>
+        <div class="pane on" id="pane-text"><textarea id="problemText" placeholder="把题目描述、输入输出格式、样例粘贴到这里"></textarea></div>
+        <div class="pane" id="pane-image">
+          <div id="drop" class="drop"><div id="dropHint">点击选择、拖入，或直接粘贴题目截图<br><small>需要所选模型支持识图</small></div><img id="imgPreview" alt=""></div>
+          <input type="file" id="imgInput" accept="image/*" hidden>
+          <button id="imgClear" class="link" hidden>移除截图</button>
+        </div>
+        <div class="pane" id="pane-url">
+          <input type="url" id="problemUrl" placeholder="https://...">
+          <p class="note">程序会打开这个网页并读取文字。需要登录才能看的题目读不到，请改用文字或截图。</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="tabs"><span class="lab">答案代码</span>
+          <select id="lang"><option value="cpp">C++</option><option value="python">Python</option></select>
+          <span class="hint">讲解会严格按这份代码进行</span></div>
+        <textarea id="code" class="mono" spellcheck="false" placeholder="把已经通过的答案代码粘贴到这里"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="steps-title"><b>2</b> 讲解角色和风格</div>
+    <div id="chars" class="chars"></div>
+    <input type="file" id="charFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    <div class="opts">
+      <label>配音<select id="voice"></select></label>
+      <label>学生年龄<select id="age"></select></label>
+      <label>视频时长<select id="minutes"><option value="2">约 2 分钟</option><option value="3">约 3 分钟</option><option value="4">约 4 分钟</option><option value="5" selected>约 5 分钟</option><option value="6">约 6 分钟</option><option value="8">约 8 分钟</option></select></label>
+      <label>场景<select id="theme"><option value="auto">由 AI 决定</option><option value="night">星空夜晚</option><option value="day">晴朗白天</option><option value="ocean">海底世界</option></select></label>
+    </div>
+  </section>
+
+  <section class="card actions">
+    <button id="btnGen" class="primary">生成讲解视频</button>
+    <button id="btnDemo" class="ghost">不配置模型，先用示例试一试</button>
+    <span id="formMsg" class="msg"></span>
+  </section>
+
+  <section class="card" id="jobPanel" hidden>
+    <div class="steps-title"><b>3</b> <span id="jobTitle">生成中</span><button id="btnCancel" class="link right">取消</button></div>
+    <div id="progressBox">
+      <div class="bar"><i id="bar"></i></div>
+      <p id="jobStage" class="stage"></p>
+    </div>
+    <p id="jobErr" class="err" hidden></p>
+    <div id="result" hidden>
+      <video id="player" controls playsinline></video>
+      <div class="dl">
+        <a id="dlVideo" class="primary sm">下载视频 MP4</a>
+        <a id="dlSrt" class="ghost sm">下载字幕 SRT</a>
+        <a id="dlSb" class="ghost sm">下载分镜 JSON</a>
+        <button id="btnShare" class="ghost sm">上传到 NOS 获取分享链接</button>
+        <span id="meta" class="meta"></span>
+      </div>
+      <div id="shareBox" class="share" hidden>
+        <span>分享链接</span><input id="shareUrl" type="text" readonly><button id="btnCopy" class="ghost sm">复制</button><a id="shareOpen" class="link" target="_blank" rel="noreferrer">打开</a>
+      </div>
+      <p id="shareMsg" class="msg"></p>
+      <ul id="warns" class="warns"></ul>
+      <details id="sbBox">
+        <summary>查看 / 修改分镜后重新生成（不再调用 AI）</summary>
+        <p class="note">分镜是动画的脚本：每句旁白和对应的画面动作。发现数字或说法不对，可以直接改这里，再重新生成。</p>
+        <textarea id="sbEdit" class="mono" spellcheck="false"></textarea>
+        <button id="btnRerender" class="ghost sm">用修改后的分镜重新生成</button>
+      </details>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="steps-title">已生成的视频</div>
+    <div id="history" class="history"></div>
+  </section>
+</main>
+
+<div id="settings" class="modal" hidden>
+  <div class="sheet">
+    <h2>AI 模型配置</h2>
+    <label>模型服务<select id="sProvider"></select></label>
+    <p id="sHint" class="note"></p>
+    <label>接口地址<input id="sBase" type="text" spellcheck="false"></label>
+    <label>模型名称
+      <span class="row"><input id="sModel" type="text" list="modelList" spellcheck="false" placeholder="可直接输入，也可点右侧获取"><button id="sFetch" class="ghost sm">获取模型列表</button></span>
+      <datalist id="modelList"></datalist>
+    </label>
+    <label id="sKeyRow">API Key<input id="sKey" type="password" autocomplete="off" spellcheck="false"></label>
+    <p class="note">API Key 只保存在这台电脑的 data/config.json 里，不会显示回页面。预置的模型名称可能过时，以「获取模型列表」返回的为准。</p>
+    <p id="sMsg" class="msg"></p>
+    <div class="row end">
+      <button id="sTest" class="ghost">测试连接</button>
+      <button id="sClose" class="ghost">关闭</button>
+      <button id="sSave" class="primary">保存并使用</button>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
